@@ -7,17 +7,17 @@ import argparse
 from sslice import *
 from shift import *
 import sys
-
+import math
 import pycuda.autoinit
 import pycuda.driver as cuda
 #drv.init()
-
+PI=math.pi
 parser=argparse.ArgumentParser()
 parser.add_argument('--part_star',type=str,default='sub160.star')
 parser.add_argument('--img_star',type=str,default='tmp_img.star')
 parser.add_argument('--output_str',type=str)
-parser.add_argument('--mask',type=str,default='J537/J537_core_mask.mrc')
-parser.add_argument('--mrcs',type=str,default='_core.mrcs')
+parser.add_argument('--mask',type=str,default='J229/mask.mrc')
+parser.add_argument('--mrcs',type=str,default='_sub.mrcs')
 parser.add_argument('--output_pool',type=int,default=24)
 parser.add_argument('--fade',type=float,default=0.5)
 args=parser.parse_args()
@@ -30,6 +30,7 @@ args=parser.parse_args()
 lines=M.star_read(args.part_star)
 stack_list=[]
 mask=M.read_float_mrc(args.mask)
+
 x,y,z=mask.shape
 temp_R=np.float32(euler2matrix([0,0,0],'xyz'))
 #init_output_pool_size=64
@@ -55,7 +56,7 @@ def patch(stack_lines_sp,mask,a_gpu,b_gpu,R_gpu,out_stack,output_volumes):
   Len=len(stack_lines_sp)
   for particle in stack_lines_sp:
     particle_sp=particle.split(' ')
-    angle=[particle_sp[2],particle_sp[3],particle_sp[4]]
+    angle=[float(particle_sp[2])/180*PI,float(particle_sp[3])/180*PI,float(particle_sp[4])/180*PI]
     dx=float(particle_sp[5])
     dy=float(particle_sp[6])
     shifts.append([dx,dy])
@@ -68,7 +69,7 @@ def patch(stack_lines_sp,mask,a_gpu,b_gpu,R_gpu,out_stack,output_volumes):
   for particle in stack_lines_sp: 
     particle_sp=particle.split(' ')
     index=int(particle_sp[1].split('@')[0])
-    out_stack[index-1]=(0.5+(0.5*slices_mask[count]))*img_stack[index-1]
+    out_stack[index-1]=(args.fade+((1-args.fade)*slices_mask[count]))*img_stack[index-1]
     count+=1
    # print(stack_name+':'+str(count)+' / '+ str(Len)+', index :'+ str(index))
   assert count==Len

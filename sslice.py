@@ -2,11 +2,24 @@ import numpy as np
 from pyrotate import *
 from matrix import *
 import pycuda.driver as cuda
-from ftslice import *
+#from ftslice import *
 from shift import *
 from lib import method as M
+import time
+import pycuda.autoinit
+#import cupy as cp
 
+def zslice(volume):
+  #gvolume=cp.asarray(volume)
+  #md=cp.get_array_module(volume)
+  x,y,z=volume.shape
+  ftvolume=np.fft.fftshift(np.fft.fftn(volume))
+  ftslice=ftvolume[int(x/2),:,:]
+  rslice=np.float32(np.abs( np.fft.ifftn(np.fft.ifftshift(ftslice))))
+  
+  return rslice
 
+#import cupy.fft as fft
 def BW(arr):
   x,y=arr.shape
   for i in range(x):
@@ -22,18 +35,19 @@ def exec_time(current):
   current=time.time()
   return current
   
-def get_slice(input_volume,angle,dx,dy,seq='zyz'):
+# xzx !!! yslice !!! y -90 !!!
+def get_slice(input_volume,angle,dx,dy,seq='xyx'):
   output_volume=np.empty_like(input_volume)
   R=np.float32(euler2matrix(angle,seq))
-  print('malloc device memory...')
+ # print('malloc device memory...')
 
-
+  
   total_mem=cuda.mem_alloc(input_volume.nbytes+output_volume.nbytes+R.nbytes)
 
   a_gpu=total_mem
   b_gpu=int(a_gpu)+input_volume.nbytes 
   R_gpu=int(b_gpu)+output_volume.nbytes
-  print('done.')
+ # print('done.')
 
   cuda.memcpy_htod(a_gpu,input_volume)
   cuda.memcpy_htod(R_gpu,R)
@@ -44,25 +58,31 @@ def get_slice(input_volume,angle,dx,dy,seq='zyz'):
   gpu_rotate(np.intp(a_gpu),np.intp(R_gpu),np.intp(b_gpu),grid)
 
   cuda.memcpy_dtoh(output_volume,b_gpu)
-  volume_slice=zslice(output_volume)
-  BW(volume_slice)
-  print(dx,dy)
-  volume_slice=shift(volume_slice,int(dx),int(dy))
-
+  tick=time.time()
+  
+  #volume_slice=gslice(output_volume)
+  #with cp.cuda.Device(0):
+  rslice=zslice(output_volume)
+ # print('GPU FFT ONLY COST : '+str(time.time()-tick))
+  BW(rslice)
+#  print(dx,dy)
+  volume_slice=shift(rslice,int(dx),int(dy))
+  M.write_file(volume_slice,'test_mask_slice.mrc')
   #print(volume_slice)
   return volume_slice
+  
 
 
 def thread_process(input_volume,dx,dy,output_list):
   #lock.acquire()
-  tmp_slice=zslice(input_volume)
+
 
   tmp_slice=zslice(input_volume)
   BW(tmp_slice)
 # not apply shift yet !!!
-  tmp_slice=shift(tmp_slice,dx,dy)
+  shift_slice=shift(tmp_slice,dx,dy)
   
-  output_list.append(tmp_slice.copy())
+  output_list.append(shift_slice.copy())
   
   #output_list.append('x')
   #lock.release()
@@ -86,7 +106,7 @@ def get_slices(input_volume,angles,shifts,a_gpu,b_init,R_init,output_volumes,seq
 #  output_volume=np.empty(shape=(x,y,z),dtype=np.float32)
 
   volume_size=input_volume.nbytes
-
+  #x,y,z=volume.shape
   #a_gpu=cuda.mem_alloc(volume_size )
   #b_init=cuda.mem_alloc(volume_size*L)
   #R_init=cuda.mem_alloc(R.nbytes*L)
@@ -147,4 +167,6 @@ def get_slices(input_volume,angles,shifts,a_gpu,b_init,R_init,output_volumes,seq
   while(len(output_list)!=L):
     print(output_list)
   return output_list
+
+
 

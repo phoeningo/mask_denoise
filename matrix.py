@@ -7,13 +7,13 @@ import time
 def Rx(input_angle):
   theta=np.float32(input_angle)
   TT=np.matrix([[1,0,0],[0,math.cos(theta),-math.sin(theta)],[0,math.sin(theta),math.cos(theta)]])
-  #print(TT)
+ # print(TT)
   return TT
 
 def Ry(input_angle):
   phi=np.float32(input_angle)
   TT=np.matrix([ [math.cos(phi),0,math.sin(phi)] , [0,1,0] , [-math.sin(phi),0,math.cos(phi)] ] )
- # print( TT)
+  #print( TT)
   return TT
 
 
